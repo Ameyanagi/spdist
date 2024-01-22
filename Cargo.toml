@@ -12,3 +12,5 @@ crate-type = ["cdylib"]
 pyo3 = "0.20.2"
 numpy = { version = "0.20.0" }
 ndarray = { version = "0.15", features = ["rayon"] }
+rayon = "1.8.1"
+approx = "0.5.1"
