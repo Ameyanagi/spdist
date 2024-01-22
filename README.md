@@ -1,6 +1,6 @@
 # spdist: Simple metrics for comparing the distance between two curves.
 
-spdist is a
+spdist is a simple metrics for comparing the distance between two given curves. The curves can be passed in as a numpy array with discrete values. It will interpolate between the values and calculate the minimum distance between each points in the curve and reference curve.
 
 ```bash
 pip install spdist
