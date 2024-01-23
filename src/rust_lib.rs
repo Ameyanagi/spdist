@@ -50,7 +50,7 @@ pub fn calc_distance<'a>(
                     }
                     // return point to line distance
                     // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
-                    ((x_ref_next - x_ref) * (y_ref - y) - (x_ref - x) * (y_ref_next - y_ref))
+                    ((x_ref_next - x_ref) * (y_ref - y) - (x_ref - x) * (y_ref_next - y_ref)).abs()
                         / ((x_ref_next - x_ref).powi(2) + (y_ref_next - y_ref).powi(2)).sqrt()
                 })
                 .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less))
