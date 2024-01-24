@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::fmt::Display;
 
-use ndarray::parallel::prelude::IntoParallelIterator;
-use numpy::ndarray::{parallel, s, ArrayBase, Ix1, OwnedRepr, ViewRepr, Zip};
+use ndarray::{parallel::prelude::IntoParallelIterator, Array};
+use numpy::ndarray::{parallel, s, Array1, ArrayBase, Ix1, OwnedRepr, ViewRepr, Zip};
 use rayon::prelude::*;
 
 #[derive(Debug)]
@@ -54,7 +54,7 @@ pub fn calc_distance<'a>(
                         / ((x_ref_next - x_ref).powi(2) + (y_ref_next - y_ref).powi(2)).sqrt()
                 })
                 .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less))
-                .unwrap_or(0.0)
+                .unwrap()
         })
         .reduce(|| 0.0f64, |acc, x| acc + x)
         / (x.len() as f64);
@@ -62,6 +62,84 @@ pub fn calc_distance<'a>(
     Ok(distance)
 }
 
+pub fn calc_distance_vector<'a>(
+    x: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+    y: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+    x_ref: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+    y_ref: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+) -> Result<ArrayBase<OwnedRepr<f64>, Ix1>, SpdistError> {
+    if x.len() != y.len() {
+        return Err(SpdistError::VectorSizeMismatch);
+    }
+
+    if x_ref.len() != y_ref.len() {
+        return Err(SpdistError::VectorSizeMismatch);
+    }
+
+    let distance: Array1<f64> = Zip::from(&x).and(&y).par_map_collect(|x, y| {
+        Zip::from(&x_ref.slice(s![..-1]))
+            .and(&y_ref.slice(s![..-1]))
+            .and(&x_ref.slice(s![1..]))
+            .and(&y_ref.slice(s![1..]))
+            .into_par_iter()
+            .map(|(x_ref, y_ref, x_ref_next, y_ref_next)| -> f64 {
+                // return point to point distance
+                if (x_ref == x_ref_next) && (y_ref == y_ref_next) {
+                    return ((x - x_ref).powi(2) + (y - y_ref).powi(2)).sqrt();
+                }
+                // return point to line distance
+                // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+                ((x_ref_next - x_ref) * (y_ref - y) - (x_ref - x) * (y_ref_next - y_ref)).abs()
+                    / ((x_ref_next - x_ref).powi(2) + (y_ref_next - y_ref).powi(2)).sqrt()
+            })
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less))
+            .unwrap()
+    }) / (x.len() as f64);
+
+    Ok(distance)
+}
+pub fn calc_squared_distance<'a>(
+    x: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+    y: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+    x_ref: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+    y_ref: ArrayBase<ViewRepr<&'a f64>, Ix1>,
+) -> Result<f64, SpdistError> {
+    if x.len() != y.len() {
+        return Err(SpdistError::VectorSizeMismatch);
+    }
+
+    if x_ref.len() != y_ref.len() {
+        return Err(SpdistError::VectorSizeMismatch);
+    }
+
+    let distance = Zip::from(&x)
+        .and(&y)
+        .into_par_iter()
+        .map(|(x, y)| {
+            Zip::from(&x_ref.slice(s![..-1]))
+                .and(&y_ref.slice(s![..-1]))
+                .and(&x_ref.slice(s![1..]))
+                .and(&y_ref.slice(s![1..]))
+                .into_par_iter()
+                .map(|(x_ref, y_ref, x_ref_next, y_ref_next)| -> f64 {
+                    // return point to point distance
+                    if (x_ref == x_ref_next) && (y_ref == y_ref_next) {
+                        return (x - x_ref).powi(2) + (y - y_ref).powi(2);
+                    }
+                    // return point to line distance
+                    // https://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line#Line_defined_by_two_points
+                    ((x_ref_next - x_ref) * (y_ref - y) - (x_ref - x) * (y_ref_next - y_ref))
+                        .powi(2)
+                        / ((x_ref_next - x_ref).powi(2) + (y_ref_next - y_ref).powi(2))
+                })
+                .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Less))
+                .unwrap()
+        })
+        .reduce(|| 0.0f64, |acc, x| acc + x)
+        / (x.len() as f64);
+
+    Ok(distance)
+}
 #[cfg(test)]
 mod test {
 
